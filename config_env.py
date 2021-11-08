@@ -6,5 +6,5 @@ DB_NAME=os.environ.get('DB_NAME')
 
 if not DB_HOST:
     from config import *
-DEBUG=not (os.environ.get('PORT') is None)
+DEBUG=os.environ.get('PORT') is None
 PORT=os.environ.get('PORT')
