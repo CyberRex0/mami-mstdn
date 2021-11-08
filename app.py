@@ -302,4 +302,7 @@ def api_v1_statuses():
     }
     return make_response(json.dumps(toot_data), 200)
 
-app.run(host='0.0.0.0', port=2222, debug=True, threaded=True)
+if config_env.DEBUG:
+    app.run(host='0.0.0.0', port=2222, debug=True, threaded=True)
+else:
+    app.run(host='0.0.0.0', port=config_env.PORT, threaded=True)
