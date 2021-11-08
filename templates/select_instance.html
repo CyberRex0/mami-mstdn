@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Select Instance</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+        <style type="text/css">
+            body {
+                padding: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <br>
+        <h1 style="font-style: italic;line-height: 0.5;">Ma<span style="color:yellowgreen">Mi</span><br><span style="font-size: 12px">Mastodon-compatible API Converting System for <span style="color:yellowgreen">Misskey</span></h1>
+        <a href="what.html">MaMiとは？</a><br>
+        <h2>インスタンスの選択</h2>
+        <p>使用しているインスタンスのドメインを入力してください。</p>
+        <br>
+        <form action="/oauth/integration_do" method="POST">
+            <input type="hidden" name="session_id" value="{{session_id}}">
+            <p><input class="form-control" type="text" name="domain" value="misskey.io"><input class="form-control btn-primary" type="submit" value="続行"></p>
+        </form>
+        <br>
+        <p style="color:red;font-size: 10pt">
+            【注意事項】<br>
+            MaMiを経由して認証を行うと、今後このサービスを利用するために認証情報がデータベースに登録されます。<br>
+            MaMiの利用を中止するには、MisskeyのAPIコンソールから「○○ (via MaMi Integration)」と書いてあるアプリケーションを削除してください。<br><br>
+            なお、このサービスは「NowPlaying4Droid」で利用することを想定しています。その他アプリでは正常に動作しない可能性があります。<br>
+        </p>
+    </body>
+</html>
