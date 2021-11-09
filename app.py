@@ -319,6 +319,49 @@ def api_v1_instances():
                 'min_expiration': 60,
                 'max_expiration': 86400,
                 'supported_expires_actions': ['mark', 'delete']
+            },
+            'media_attachments': {
+                'supported_mime_types': [
+                    'image/jpeg',
+                    'image/png',
+                    'image/gif',
+                    'image/webp',
+                    'image/heif',
+                    'image/heic',
+                    'video/webm',
+                    'video/mp4',
+                    'video/quicktime',
+                    'video/ogg',
+                    'audio/wave',
+                    'audio/wav',
+                    'audio/x-wav',
+                    'audio/x-pn-wave',
+                    'audio/ogg',
+                    'audio/mpeg',
+                    'audio/mp3',
+                    'audio/webm',
+                    'audio/flac',
+                    'audio/aac',
+                    'audio/m4a',
+                    'audio/x-m4a',
+                    'audio/mp4',
+                    'audio/3gpp',
+                    'video/x-ms-asf'
+                ],
+                'image_size_limit': 10485760,
+                'image_matrix_limit': 16777216,
+                'video_size_limit': 41943040,
+                'video_frame_rate_limit': 60,
+                'video_matrix_limit': 2304000,
+            },
+            'polls': {
+                'max_options': 4,
+                'max_characters_per_option': 50,
+                'min_expiration': 300,
+                'max_expiration': 2629746
+            },
+            'emoji_reactions': {
+                'max_reactions': 20
             }
         },
         'urls': {
@@ -353,7 +396,9 @@ def api_v1_instances():
             'header': 'https://' + request.host + '/header/original',
             'header_static': 'https://' + request.host + '/header/original',
             'subscribing_count': 0,
-            'last_status_at': '2021-11-01'
+            'last_status_at': '2021-11-01',
+            'emojis': [],
+            'fields': []
         }
     }
     res = make_response(json.dumps(data), 200)
