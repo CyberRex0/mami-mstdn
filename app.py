@@ -307,12 +307,22 @@ def api_v1_instances():
     data = {
         'uri': request.host,
         'title': 'MaMi Emulated Instance',
-        'short_description': 'In fact, this instance is fake. Only for emulate Mastodon API.',
-        'description': 'In fact, this instance is fake. Only for emulate Mastodon API.',
+        'short_description': 'このインスタンスは実体を持っておらず、エミュレートされています。',
+        'description': 'このインスタンスは実体を持っておらず、エミュレートされています。',
         'email': 'postmaster@' + request.host,
-        'version': '3.0.1',
+        'version': '3.4.1',
+        'configurations': {
+            'statuses': {
+                'max_characters': 999999,
+                'max_media_attachments': 10,
+                'characters_reserved_per_url': 21,
+                'min_expiration': 60,
+                'max_expiration': 86400,
+                'supported_expires_actions': ['mark', 'delete']
+            }
+        },
         'urls': {
-            'streaming_api': None
+            'streaming_api': 'wss://' + request.host,
         },
         'stats': {
             'user_count': 1,
