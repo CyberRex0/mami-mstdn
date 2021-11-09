@@ -403,6 +403,7 @@ def api_v1_instances():
     }
     res = make_response(json.dumps(data), 200)
     res.headers['Content-Type'] = 'application/json'
+    res.headers['Access-Control-Allow-Origin'] = '*'
     return res
 
 if config_env.DEBUG:
