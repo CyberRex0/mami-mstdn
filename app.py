@@ -302,7 +302,7 @@ def api_v1_statuses():
     }
     return make_response(json.dumps(toot_data), 200)
 
-@app.route('/api/v1/instances', methods=['GET'])
+@app.route('/api/v1/instance', methods=['GET'])
 def api_v1_instances():
     data = {
         'uri': request.host,
