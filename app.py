@@ -428,7 +428,7 @@ def api_share_do():
         return make_response('Text decode failed', 500)
     res = make_response('', 302)
     res.set_cookie('instance_domain', request.form['domain'], datetime.timedelta(days=365))
-    res.headers['Location'] = 'https://' + request.form['domain'] + '/share?text=' + text
+    res.headers['Location'] = 'https://' + request.form['domain'] + '/share?text=' + urllib.parse.quote(text)
     return res
 
 if config_env.DEBUG:
