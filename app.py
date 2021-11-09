@@ -333,7 +333,28 @@ def api_v1_instances():
         'languages': ['ja'],
         'registrations': False,
         'approval_required': False,
-        'contact_account': None
+        'contact_account': {
+            'id': '1',
+            'username': 'cyberrex',
+            'acct': 'cyberrex',
+            'display_name': 'CyberRex',
+            'locked': False,
+            'bot': False,
+            'discoverable': True,
+            'group': False,
+            'created_at': '2019-01-01T00:00:00+00:00',
+            'followers_count': 1,
+            'following_count': 1,
+            'statuses_count': 1,
+            'note': '',
+            'url': 'https://' + request.host,
+            'avatar': 'https://' + request.host + '/avatar/original',
+            'avatar_static': 'https://' + request.host + '/avatar/original',
+            'header': 'https://' + request.host + '/header/original',
+            'header_static': 'https://' + request.host + '/header/original',
+            'subscribing_count': 0,
+            'last_status_at': '2021-11-01'
+        }
     }
     res = make_response(json.dumps(data), 200)
     res.headers['Content-Type'] = 'application/json'
