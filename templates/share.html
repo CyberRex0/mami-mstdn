@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>ノート共有</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+        <style type="text/css">
+            body {
+                padding: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <br>
+        <h1 style="font-style: italic;line-height: 0.5;">Ma<span style="color:yellowgreen">Mi</span><br><span style="font-size: 12px">Mastodon-compatible API Converting System for <span style="color:yellowgreen">Misskey</span></h1>
+        <a href="what.html">MaMiとは？</a><br>
+        <h2>ノート共有：インスタンスの選択</h2>
+        <p>
+            使用しているインスタンスのドメインを入力してください。<br>
+            入力したドメインは記憶されます。
+        </p>
+        <br>
+        <form action="/share/do" method="POST">
+            <input type="hidden" name="data" value="{{data}}">
+            <p><input class="form-control" type="text" name="domain" value="{{instance_domain}}"><input class="form-control btn-primary" type="submit" value="続行"></p>
+        </form>
+        <br>
+    </body>
+</html>
