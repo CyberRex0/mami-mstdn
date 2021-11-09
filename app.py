@@ -413,7 +413,7 @@ def api_share():
     instance_domain = 'misskey.io'
     if request.cookies.get('instance_domain'):
         instance_domain = request.cookies.get('instance_domain')
-    res = make_response(render_template('share.html', instance_domain=instance_domain, data=base64.b64encode(request.args['text']).decode()), 200)
+    res = make_response(render_template('share.html', instance_domain=instance_domain, data=base64.b64encode(request.args['text'].encode()).decode()), 200)
     return res
 
 @app.route('/share/do', methods=['POST'])
