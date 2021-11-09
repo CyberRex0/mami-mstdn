@@ -10,6 +10,8 @@ import uuid
 import requests
 import re
 import time, random
+import base64
+import datetime
 from misskey import Misskey
 
 app = Flask(__name__, static_url_path='/')
@@ -404,6 +406,25 @@ def api_v1_instances():
     res = make_response(json.dumps(data), 200)
     res.headers['Content-Type'] = 'application/json'
     res.headers['Access-Control-Allow-Origin'] = '*'
+    return res
+
+@app.route('/share', methods=['GET'])
+def api_share():
+    instance_domain = 'misskey.io'
+    if request.cookies.get('instance_domain'):
+        instance_domain = request.cookies.get('instance_domain')
+    res = make_response(render_template('share.html', instance_domain=instance_domain, data=base64.b64encode(request.args['text']).decode()), 200)
+    return res
+
+@app.route('/share/do', methods=['POST'])
+def api_share_do():
+    if (not request.form.get('domain')) or (not request.form.get('text')):
+        return make_response('Invalid parameters', 400)
+    if re.findall(r'(&|=|\/)', request.form.get('domain')):
+        return make_response('Malformed domain name detected', 400)
+    res = make_response('', 302)
+    res.set_cookie('instance_domain', request.form['domain'], datetime.timedelta(days=365))
+    res.headers['Location'] = 'https://' + request.form['domain'] + '/share?text=' + request.form['text']
     return res
 
 if config_env.DEBUG:
