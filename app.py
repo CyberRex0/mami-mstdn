@@ -302,7 +302,34 @@ def api_v1_statuses():
     }
     return make_response(json.dumps(toot_data), 200)
 
+@app.route('/api/v1/instances', methods=['GET'])
+def api_v1_instances():
+    data = {
+        'uri': request.host,
+        'title': 'MaMi Emulated Instance',
+        'short_description': 'In fact, this instance is fake. Only for emulate Mastodon API.',
+        'description': 'In fact, this instance is fake. Only for emulate Mastodon API.',
+        'email': 'postmaster@' + request.host,
+        'version': '3.0.1',
+        'urls': {
+            'streaming_api': None
+        },
+        'stats': {
+            'user_count': 1,
+            'status_count': 1,
+            'domain_count': 1
+        },
+        'thumbnail': None,
+        'languages': ['ja'],
+        'registrations': False,
+        'approval_required': False,
+        'contact_account': None
+    }
+    res = make_response(json.dumps(data), 200)
+    res.headers['Content-Type'] = 'application/json'
+    return res
+
 if config_env.DEBUG:
     app.run(host='0.0.0.0', port=2222, debug=True, threaded=True)
 else:
-    app.run(host='0.0.0.0', port=config_env.PORT, threaded=True)
+    app.run(host='0.0.0.0', port=config_env.PORT, debug=False, threaded=True)
