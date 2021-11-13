@@ -85,7 +85,7 @@ def oauth_do_integration():
     res.headers['Location'] = f'https://{instance_domain}/miauth/{session_id}?' + build_query(
         name=sesinfo['client_name']+' (via MaMi Integration)',
         callback=f'https://{request.host}/oauth/integration_callback/{instance_domain}',
-        permission='read:account,write:notes,write:drive,read:drive'
+        permission='read:account,write:notes,write:drive,read:drive,write:notifications'
     )
     return res
 
@@ -141,8 +141,8 @@ def oauth_token():
     # ベアラートークン登録
     access_token = str(uuid.uuid4())
     with db.cursor() as cur:
-        cur.execute('INSERT INTO oauth(misskey_token, mstdn_token, instance_domain) VALUES (%s, %s, %s)'
-            , (sesinfo['misskey_token'], access_token, sesinfo['instance_domain']))
+        cur.execute('INSERT INTO oauth(misskey_token, mstdn_token, instance_domain, app_name) VALUES (%s, %s, %s, %s)'
+            , (sesinfo['misskey_token'], access_token, sesinfo['instance_domain'], sesinfo['client_name']))
         cur.execute('commit')
     return json.dumps({
         'access_token': access_token,
@@ -194,6 +194,15 @@ def api_verify_credentials():
         'statuses_count': profile['notesCount'],
         'fields': profile['fields']
     }
+
+    # ユーザーにログイン成功通知を送る
+    now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+    app_name = oauth_info['app_name']
+    r = requests.post(f'https://{oauth_info["instance_domain"]}/api/notifications/create', json={
+        'i': oauth_info['misskey_token'],
+        'header': 'MaMi Integration',
+        'body': f'MaMiの連携が行われました。\nアプリケーション名: {app_name}\n日時: {now.strftime("%Y/%m/%d %H:%M:%S")}'
+    })
 
     res = make_response(json.dumps(profile_mastodon), 200)
     res.headers['Content-Type'] = 'application/json'
