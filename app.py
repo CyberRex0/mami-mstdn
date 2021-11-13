@@ -32,6 +32,16 @@ def build_query(**kwargs):
         prms.add(f'{k}={urllib.parse.quote(kwargs[k])}')
     return '&'.join(prms)
 
+def get_token_from_header(h):
+    auth_header = h.get('Authorization')
+    if not auth_header:
+        return None
+    auth_header = auth_header.split(' ')
+    if len(auth_header) != 2:
+        return None
+    if auth_header[0] != 'Bearer':
+        return None
+    return auth_header[1]
 
 @app.route('/')
 def root():
@@ -128,7 +138,7 @@ def oauth_token():
     if (not data.get('client_id')) or (not data.get('code')) or (not data.get('grant_type')):
         return make_response('Bad Request', 400)
     if data['grant_type'] != 'authorization_code':
-        return make_response('This grnat type is not supported', 400)
+        return make_response('This grant type is not supported', 400)
     # セッションがあるか確認
     session_id = data['client_id']
     with db.cursor(dictionary=True) as cur:
@@ -154,16 +164,11 @@ def oauth_token():
 @app.route('/api/v1/accounts/verify_credentials')
 def api_verify_credentials():
     db.ping(reconnect=True)
-    headers = request.headers
-    auth_header = headers.get('Authorization')
-    if not auth_header:
-        return make_response('No authorization header', 401)
-    auth_header = auth_header.split(' ')
-    if len(auth_header) != 2:
+
+    access_token = get_token_from_header(request.headers) # Mastodon側のトークン
+    if not access_token:
         return make_response('Invalid authorization header', 401)
-    if auth_header[0] != 'Bearer':
-        return make_response('Invalid authorization header', 401)
-    access_token = auth_header[1] # Mastodon側のトークン
+    
     with db.cursor(dictionary=True) as cur:
         cur.execute('SELECT * FROM oauth WHERE mstdn_token = %s', (access_token,))
         oauth_info = cur.fetchone()
@@ -211,16 +216,9 @@ def api_verify_credentials():
 @app.route('/api/v1/media', methods=['POST'])
 def api_v1_media():
     db.ping(reconnect=True)
-    headers = request.headers
-    auth_header = headers.get('Authorization')
-    if not auth_header:
-        return make_response('No authorization header', 401)
-    auth_header = auth_header.split(' ')
-    if len(auth_header) != 2:
+    access_token = get_token_from_header(request.headers) # Mastodon側のトークン
+    if not access_token:
         return make_response('Invalid authorization header', 401)
-    if auth_header[0] != 'Bearer':
-        return make_response('Invalid authorization header', 401)
-    access_token = auth_header[1] # Mastodon側のトークン
     with db.cursor(dictionary=True) as cur:
         cur.execute('SELECT * FROM oauth WHERE mstdn_token = %s', (access_token,))
         oauth_info = cur.fetchone()
@@ -267,16 +265,11 @@ def api_v1_statuses():
     media_ids = data.getlist('media_ids[]')
     if not text:
         return make_response('No text', 400)
-    headers = request.headers
-    auth_header = headers.get('Authorization')
-    if not auth_header:
-        return make_response('No authorization header', 401)
-    auth_header = auth_header.split(' ')
-    if len(auth_header) != 2:
+    
+    access_token = get_token_from_header(request.headers) # Mastodon側のトークン
+    if not access_token:
         return make_response('Invalid authorization header', 401)
-    if auth_header[0] != 'Bearer':
-        return make_response('Invalid authorization header', 401)
-    access_token = auth_header[1] # Mastodon側のトークン
+
     with db.cursor(dictionary=True) as cur:
         cur.execute('SELECT * FROM oauth WHERE mstdn_token = %s', (access_token,))
         oauth_info = cur.fetchone()
@@ -389,9 +382,9 @@ def api_v1_instances():
         'approval_required': False,
         'contact_account': {
             'id': '1',
-            'username': 'cyberrex',
-            'acct': 'cyberrex',
-            'display_name': 'CyberRex',
+            'username': 'emulatedadmin',
+            'acct': 'emulatedadmin',
+            'display_name': 'emulatedadmin',
             'locked': False,
             'bot': False,
             'discoverable': True,
