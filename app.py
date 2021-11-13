@@ -78,7 +78,8 @@ def oauth_do_integration():
     fdata = request.form
     if (not fdata.get('session_id')) or (not fdata.get('domain')):
         return make_response('BAD REQUEST', 400)
-    session_id = fdata['session_id']
+    session_id = fdata['session_id'] # セッションID
+    miauth_session_id = str(uuid.uuid4()) # MiAuthのセッションID (session_idと混同しない)
     instance_domain = fdata['domain']
     if re.findall(r'(&|=|\/)', instance_domain):
         return make_response('Malformed domain name detected', 400)
@@ -88,11 +89,11 @@ def oauth_do_integration():
         sesinfo = cur.fetchone()
         if not sesinfo:
             return make_response('No such session id', 400)
-        cur.execute('UPDATE oauth_pending SET instance_domain = %s WHERE session_id = %s', (instance_domain, fdata['session_id']))
+        cur.execute('UPDATE oauth_pending SET instance_domain = %s, miauth_session_id = %s WHERE session_id = %s', (instance_domain, miauth_session_id, fdata['session_id']))
         cur.execute('commit')
     
     res = make_response('', 302)
-    res.headers['Location'] = f'https://{instance_domain}/miauth/{session_id}?' + build_query(
+    res.headers['Location'] = f'https://{instance_domain}/miauth/{miauth_session_id}?' + build_query(
         name=sesinfo['client_name']+' (via MaMi Integration)',
         callback=f'https://{request.host}/oauth/integration_callback/{instance_domain}',
         permission='read:account,write:notes,write:drive,read:drive,write:notifications'
@@ -108,11 +109,11 @@ def oauth_integration_callback(domain):
     auth_code = str(uuid.uuid4())
     # セッションがあるか確認
     with db.cursor(dictionary=True) as cur:
-        cur.execute('SELECT * FROM oauth_pending WHERE session_id = %s', (args['session'],))
+        cur.execute('SELECT * FROM oauth_pending WHERE miauth_session_id = %s', (args['session'],))
         sesinfo = cur.fetchone()
         if not sesinfo:
             return make_response('No such session id', 400)
-        cur.execute('UPDATE oauth_pending SET authcode = %s WHERE session_id = %s', (auth_code, args['session']))
+        cur.execute('UPDATE oauth_pending SET authcode = %s WHERE miauth_session_id = %s', (auth_code, args['session']))
         cur.execute('commit')
     # インスタンスにセッション照会
     oauth_req = requests.post(f'https://{domain}/api/miauth/{args["session"]}/check')
@@ -123,7 +124,7 @@ def oauth_integration_callback(domain):
         return make_response('セッションが無効です。(MIAUTH_INVALID_SESSION)', 403)
     
     with db.cursor() as cur:
-        cur.execute('UPDATE oauth_pending SET misskey_token = %s WHERE session_id = %s', (data['token'], args['session']))
+        cur.execute('UPDATE oauth_pending SET misskey_token = %s WHERE miauth_session_id = %s', (data['token'], args['session']))
         cur.execute('commit')
 
     res = make_response('', 302)
@@ -137,8 +138,10 @@ def oauth_token():
     print(data)
     if (not data.get('client_id')) or (not data.get('code')) or (not data.get('grant_type')):
         return make_response('Bad Request', 400)
+    
     if data['grant_type'] != 'authorization_code':
         return make_response('This grant type is not supported', 400)
+    
     # セッションがあるか確認
     session_id = data['client_id']
     with db.cursor(dictionary=True) as cur:
@@ -148,12 +151,18 @@ def oauth_token():
             return make_response('No such session id', 400)
         if sesinfo['authcode'] != data['code']:
             return make_response('Invalid code', 400)
+    
     # ベアラートークン登録
     access_token = str(uuid.uuid4())
     with db.cursor() as cur:
         cur.execute('INSERT INTO oauth(misskey_token, mstdn_token, instance_domain, app_name) VALUES (%s, %s, %s, %s)'
             , (sesinfo['misskey_token'], access_token, sesinfo['instance_domain'], sesinfo['client_name']))
         cur.execute('commit')
+
+        # 仮セッションはちゃんと削除しよう（戒め）
+        cur.execute('DELETE FROM oauth_pending WHERE session_id = %s', (session_id,))
+        cur.execute('commit')
+
     return json.dumps({
         'access_token': access_token,
         'token_type': 'bearer',
@@ -174,12 +183,14 @@ def api_verify_credentials():
         oauth_info = cur.fetchone()
         if not oauth_info:
             return make_response('Invalid access token', 401)
+    
     # Misskeyインスタンスに問い合わせ
     m = Misskey(address=oauth_info['instance_domain'] ,i=oauth_info['misskey_token'])
     try:
         profile = m.i()
     except:
         return make_response('Misskey API error', 500)
+    
     # プロフィールデータ再構成
     profile_mastodon = {
         'id': profile['id'],
@@ -219,11 +230,13 @@ def api_v1_media():
     access_token = get_token_from_header(request.headers) # Mastodon側のトークン
     if not access_token:
         return make_response('Invalid authorization header', 401)
+    
     with db.cursor(dictionary=True) as cur:
         cur.execute('SELECT * FROM oauth WHERE mstdn_token = %s', (access_token,))
         oauth_info = cur.fetchone()
         if not oauth_info:
             return make_response('Invalid access token', 401)
+    
     # Misskeyのドライブにアップロード
     m = Misskey(address=oauth_info['instance_domain'] ,i=oauth_info['misskey_token'])
     try:
@@ -275,10 +288,12 @@ def api_v1_statuses():
         oauth_info = cur.fetchone()
         if not oauth_info:
             return make_response('Invalid access token', 401)
+    
     drive_ids = []
     for mid in media_ids:
         if mid in list(drive_mediaid_table.keys()):
             drive_ids.append(drive_mediaid_table[mid])
+    
     # Misskeyにノート投稿
     m = Misskey(address=oauth_info['instance_domain'] ,i=oauth_info['misskey_token'])
     try:
