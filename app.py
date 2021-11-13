@@ -12,6 +12,7 @@ import re
 import time, random
 import base64
 import datetime
+import hashlib
 from misskey import Misskey
 
 app = Flask(__name__, static_url_path='/')
@@ -78,8 +79,10 @@ def oauth_do_integration():
     fdata = request.form
     if (not fdata.get('session_id')) or (not fdata.get('domain')):
         return make_response('BAD REQUEST', 400)
+    
     session_id = fdata['session_id'] # セッションID
     miauth_session_id = str(uuid.uuid4()) # MiAuthのセッションID (session_idと混同しない)
+
     instance_domain = fdata['domain']
     if re.findall(r'(&|=|\/)', instance_domain):
         return make_response('Malformed domain name detected', 400)
@@ -92,6 +95,57 @@ def oauth_do_integration():
         cur.execute('UPDATE oauth_pending SET instance_domain = %s, miauth_session_id = %s WHERE session_id = %s', (instance_domain, miauth_session_id, fdata['session_id']))
         cur.execute('commit')
     
+    # MiAuth対応確認
+    try:
+        r = requests.post(f'https://{instance_domain}/api/meta', json={'detail': True})
+        meta = r.json()
+    except:
+        return make_response('インスタンスの情報取得に失敗しました。', 500)
+    
+    # MiAuth非対応の場合、レガシーモードで認証するように
+    if not meta['features'].get('miauth'):
+        with db.cursor(dictionary=True) as cur:
+            cur.execute('UPDATE oauth_pending SET legacy_mode = %s WHERE session_id = %s', (True, fdata['session_id']))
+            cur.execute('commit')
+        
+        # アプリケーション作成
+        r = requests.post(f'https://{instance_domain}/api/app/create', json={
+            'name': sesinfo['client_name'],
+            'description': 'Created via MaMi Integration (Legacy Mode)',
+            'permission': [
+                'read:account',
+                'read:drive',
+                'write:drive',
+                'write:notes'
+            ],
+            'callbackUrl': f'https://{request.host}/misskey/legacy_callback'
+        })
+
+        if r.status_code != 200:
+            return make_response('インスタンスにアプリケーションを作成できませんでした。', 500)
+
+        app_info = r.json()
+
+        # セッション作成
+        r = requests.post(f'https://{instance_domain}/api/auth/session/generate', json={
+            'appSecret': app_info['secret']
+        })
+
+        if r.status_code != 200:
+            return make_response('認証セッションを作成できませんでした。', 500)
+
+        session_info = r.json()
+        token = session_info['token']
+
+        with db.cursor(dictionary=True) as cur:
+            cur.execute('UPDATE oauth_pending SET legacy_token = %s, legacy_secret = %s WHERE session_id = %s', (token, app_info['secret'], fdata['session_id']))
+            cur.execute('commit')
+        
+        res = make_response('', 302)
+        res.headers['Location'] = session_info['url']
+        return res
+
+
     res = make_response('', 302)
     res.headers['Location'] = f'https://{instance_domain}/miauth/{miauth_session_id}?' + build_query(
         name=sesinfo['client_name']+' (via MaMi Integration)',
@@ -100,12 +154,56 @@ def oauth_do_integration():
     )
     return res
 
+# MiAuth非対応インスタンス用コールバック
+@app.route('/misskey/legacy_callback')
+def misskey_legacy_callback():
+
+    if not request.args.get('token'):
+        return make_response('アクセストークンがありません。', 400)
+
+    token = request.args.get('token')
+
+    with db.cursor(dictionary=True) as cur:
+        cur.execute('SELECT * FROM oauth_pending WHERE legacy_token = %s', (token,))
+        sesinfo = cur.fetchone()
+        if not sesinfo:
+            return make_response('No such session', 400)
+    
+    # ユーザーキー取得
+    r = requests.post(f'https://{sesinfo["instance_domain"]}/api/auth/session/userkey', json={
+        'token': token,
+        'appSecret': sesinfo['legacy_secret']
+    })
+
+    if r.status_code != 200:
+        return make_response('アクセストークンが無効です。', 400)
+    
+    keyinfo = r.json()
+    user_key = keyinfo['accessToken']
+
+    # アクセストークン生成(ユーザーキー+シークレットキー結合の上SHA256に変換)
+    access_token = hashlib.sha256((user_key+sesinfo['legacy_secret']).encode()).hexdigest()
+
+    auth_code = str(uuid.uuid4())
+    
+    with db.cursor() as cur:
+        cur.execute('UPDATE oauth_pending SET misskey_token = %s, authcode = %s WHERE legacy_token = %s', (access_token, auth_code, token))
+        cur.execute('commit')
+
+    res = make_response('', 302)
+    res.headers['Location'] = sesinfo['redirect_uri'] + '?code=' + auth_code
+    return res
+
+
+
 @app.route('/oauth/integration_callback/<string:domain>')
 def oauth_integration_callback(domain):
     db.ping(reconnect=True)
     args = request.args
+
     if not args.get('session'):
         return make_response('No session id', 400)
+    
     auth_code = str(uuid.uuid4())
     # セッションがあるか確認
     with db.cursor(dictionary=True) as cur:
@@ -155,8 +253,8 @@ def oauth_token():
     # ベアラートークン登録
     access_token = str(uuid.uuid4())
     with db.cursor() as cur:
-        cur.execute('INSERT INTO oauth(misskey_token, mstdn_token, instance_domain, app_name) VALUES (%s, %s, %s, %s)'
-            , (sesinfo['misskey_token'], access_token, sesinfo['instance_domain'], sesinfo['client_name']))
+        cur.execute('INSERT INTO oauth(misskey_token, mstdn_token, instance_domain, legacy_mode, app_name) VALUES (%s, %s, %s, %s, %s)'
+            , (sesinfo['misskey_token'], access_token, sesinfo['instance_domain'], sesinfo['legacy_mode'], sesinfo['client_name']))
         cur.execute('commit')
 
         # 仮セッションはちゃんと削除しよう（戒め）
@@ -202,7 +300,7 @@ def api_verify_credentials():
         'header': profile['bannerUrl'],
         'header_static': profile['bannerUrl'],
         'note': profile['description'],
-        'url': profile['url'],
+        'url': profile.get('url'),
         'locked': profile['isLocked'],
         'bot': profile['isBot'],
         'followers_count': profile['followersCount'],
