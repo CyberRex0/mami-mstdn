@@ -1,3 +1,4 @@
+import traceback
 from flask import Flask, request
 from flask.helpers import make_response
 from flask.templating import render_template
@@ -438,7 +439,7 @@ def api_v1_account_statuses(account_id):
     m = Misskey(address=oauth_info['instance_domain'] ,i=oauth_info['misskey_token'])
 
     try:
-        notes = m.users_notes(account_id, limit=query.get('limit') or 100)
+        notes = m.users_notes(user_id=account_id, limit=query.get('limit') or 100)
         toots = []
         for note in notes:
             toots.append({
@@ -464,7 +465,8 @@ def api_v1_account_statuses(account_id):
         r.headers['Content-Type'] = 'application/json'
         return r
         
-    except:
+    except Exception as e:
+        print(traceback.format_exc())
         return make_response('Misskey API error', 500)
 
 @app.route('/api/v1/instance', methods=['GET'])
