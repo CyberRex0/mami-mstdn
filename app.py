@@ -419,7 +419,7 @@ def api_v1_statuses():
     }
     return make_response(json.dumps(toot_data), 200)
 
-@app.route('/api/v1/accounts/<str:account_id>/statuses', methods=['GET'])
+@app.route('/api/v1/accounts/<string:account_id>/statuses', methods=['GET'])
 def api_v1_account_statuses(account_id):
     db.ping(reconnect=True)
     access_token = get_token_from_header(request.headers)
