@@ -419,6 +419,54 @@ def api_v1_statuses():
     }
     return make_response(json.dumps(toot_data), 200)
 
+@app.route('/api/v1/accounts/<str:account_id>/statuses', methods=['GET'])
+def api_v1_account_statuses(account_id):
+    db.ping(reconnect=True)
+    access_token = get_token_from_header(request.headers)
+
+    query = request.args
+
+    if not access_token:
+        return make_response('{"error": "The access token is invalid"}', 401)
+    
+    with db.cursor(dictionary=True) as cur:
+        cur.execute('SELECT * FROM oauth WHERE mstdn_token = %s', (access_token,))
+        oauth_info = cur.fetchone()
+        if not oauth_info:
+            return make_response('{"error": "The access token is invalid"}', 401)
+    
+    m = Misskey(address=oauth_info['instance_domain'] ,i=oauth_info['misskey_token'])
+
+    try:
+        notes = m.users_notes(account_id, limit=query.get('limit') or 100)
+        toots = []
+        for note in notes:
+            toots.append({
+                'id': note['id'],
+                'created_at': note['createdAt'],
+                'in_reply_to_id': None,
+                'in_reply_to_account_id': None,
+                'sensitive': False,
+                'visibliity': note['visibility'],
+                'replies_count': note['repliesCount'],
+                'reblogs_count': note['renoteCount'],
+                'favourites_count': 0,
+                'favourited': False,
+                'reblogged': False,
+                'muted': False,
+                'pinned': False,
+                'content': note['text'],
+                'reblog': None,
+                'application': None
+            })
+        
+        r = make_response(json.dumps(toots), 200)
+        r.headers['Content-Type'] = 'application/json'
+        return r
+        
+    except:
+        return make_response('Misskey API error', 500)
+
 @app.route('/api/v1/instance', methods=['GET'])
 def api_v1_instances():
     data = {
