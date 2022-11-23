@@ -59,7 +59,7 @@ def api_v1_apps():
         (uid, request.form['client_name'], request.form['scopes'], request.form['redirect_uris'], None))
         cur.execute('commit')
     return json.dumps({
-        'id': 'fakeoauthid001',
+        'id': str(time.time()).replace('.', ''),
         'client_name': request.form['client_name'],
         'redirect_uri': request.form['redirect_uris'],
         'client_id': uid,
@@ -292,9 +292,9 @@ def api_verify_credentials():
     
     # プロフィールデータ再構成
     profile_mastodon = {
-        'id': profile['id'],
-        'username': profile['username'],
-        'acct': profile['username'],
+        'id': str(time.time()).replace('.', ''),
+        'username': profile['username'] + '_' + oauth_info['instance_domain'].replace('.','_').replace('-','_'),
+        'acct': profile['username'] + '_' + oauth_info['instance_domain'].replace('.','_').replace('-','_'),
         'display_name': profile['name'],
         'avatar': profile['avatarUrl'],
         'avatar_static': profile['avatarUrl'],
