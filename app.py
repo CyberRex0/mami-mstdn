@@ -15,6 +15,7 @@ import base64
 import datetime
 import hashlib
 from misskey import Misskey
+from snowflake import SnowflakeGenerator
 
 app = Flask(__name__, static_url_path='/')
 db = msql.connect(
@@ -26,6 +27,7 @@ db = msql.connect(
 )
 db.ping(reconnect=True)
 
+snowflake_gen = SnowflakeGenerator(128)
 drive_mediaid_table = {}
 
 def build_query(**kwargs):
@@ -44,6 +46,20 @@ def get_token_from_header(h):
     if auth_header[0] != 'Bearer':
         return None
     return auth_header[1]
+
+def miV2mdV(v):
+    if   v == 'public':
+        return 'public'
+    elif v == 'home':
+        return 'unlisted'
+    elif v == 'followers':
+        return 'private'
+    elif v == 'specified':
+        return 'direct'
+    return 'public'
+
+def generateMastodonId():
+    return next(snowflake_gen)
 
 @app.route('/')
 def root():
@@ -290,11 +306,13 @@ def api_verify_credentials():
     except:
         return make_response('Misskey API error', 500)
     
+    virtualAcct = profile['username'] + '_' + oauth_info['instance_domain'].replace('.','_').replace('-','_')
+
     # プロフィールデータ再構成
     profile_mastodon = {
-        'id': str(time.time()).replace('.', ''),
-        'username': profile['username'] + '_' + oauth_info['instance_domain'].replace('.','_').replace('-','_'),
-        'acct': profile['username'] + '_' + oauth_info['instance_domain'].replace('.','_').replace('-','_'),
+        'id': str(abs(hash(virtualAcct))),
+        'username': virtualAcct,
+        'acct': virtualAcct,
         'display_name': profile['name'],
         'avatar': profile['avatarUrl'],
         'avatar_static': profile['avatarUrl'],
@@ -345,7 +363,7 @@ def api_v1_media():
         return make_response('Misskey API error', 500)
     
     # Mastodonは数字のメディアIDのみ受け付けるため、変換テーブルに登録して投稿用に備える
-    fake_drive_id = f'{time.time():.0f}{random.randint(0,999999)}'
+    fake_drive_id = str(generateMastodonId())
     drive_mediaid_table[fake_drive_id] = drive_file['id']
 
 
@@ -407,13 +425,13 @@ def api_v1_statuses():
     note = note_d['createdNote']
 
     toot_data = {
-        'id': note['id'],
+        'id': generateMastodonId(),
         'created_at': note['createdAt'],
         'in_reply_to_id': None,
         'in_reply_to_account_id': None,
         'sensitive': sensitive,
         'spoiler_text': None,
-        'visibility': visibility,
+        'visibility': miV2mdV(visibility),
         'language': None,
         'content': text,
         'reblog': None
@@ -443,12 +461,12 @@ def api_v1_account_statuses(account_id):
         toots = []
         for note in notes:
             toots.append({
-                'id': note['id'],
+                'id': str(abs(hash(note['id']))),
                 'created_at': note['createdAt'],
                 'in_reply_to_id': None,
                 'in_reply_to_account_id': None,
                 'sensitive': False,
-                'visibliity': note['visibility'],
+                'visibliity': miV2mdV(note['visibility']),
                 'replies_count': note['repliesCount'],
                 'reblogs_count': note['renoteCount'],
                 'favourites_count': 0,
@@ -467,7 +485,7 @@ def api_v1_account_statuses(account_id):
         
     except Exception as e:
         print(traceback.format_exc())
-        return make_response('Misskey API error', 500)
+        return make_response('{"error": "Misskey API Error"}', 500)
 
 @app.route('/api/v1/instance', methods=['GET'])
 def api_v1_instances():
@@ -477,7 +495,7 @@ def api_v1_instances():
         'short_description': 'このインスタンスは実体を持っておらず、エミュレートされています。',
         'description': 'このインスタンスは実体を持っておらず、エミュレートされています。',
         'email': 'postmaster@' + request.host,
-        'version': '3.4.1',
+        'version': '4.0.2',
         'configurations': {
             'statuses': {
                 'max_characters': 999999,
@@ -571,6 +589,49 @@ def api_v1_instances():
     res = make_response(json.dumps(data), 200)
     res.headers['Content-Type'] = 'application/json'
     res.headers['Access-Control-Allow-Origin'] = '*'
+    return res
+
+@app.route('/.well-known/nodeinfo', methods=['GET'])
+def nodeinfo():
+    ni = {
+        "links":[
+            {
+                "rel": "http://nodeinfo.diaspora.software/ns/schema/2.0",
+                "href": request.host_url + "/nodeinfo/2.0"
+            }
+        ]
+    }
+    res = make_response(json.dumps(ni), 200)
+    res.headers['Content-Type'] = 'application/json'
+    return res
+
+@app.route('/nodeinfo/2.0', methods=['GET'])
+def nodeinfo_main():
+    ni = {
+        'version': '2.0',
+        'software': {
+            'name': 'matsodon',
+            'version': '4.0.2'
+        },
+        'protocols': ['activitypub'],
+        'services': {
+            'outbound': [],
+            'inbound': []
+        },
+        'usage': {
+            'users': {
+                'total': 1,
+                'activeMonth': 1,
+                'activeHalfyear': 1
+            },
+            'localPosts': 1
+        },
+        'openRegistrations': False,
+        'metadata': {}
+    }
+    res = make_response(json.dumps(ni), 200)
+    res.headers['Content-Type'] = 'application/json'
+    res.headers['server'] = 'mastodon'
     return res
 
 @app.route('/share', methods=['GET'])
