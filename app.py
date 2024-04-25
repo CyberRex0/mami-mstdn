@@ -5,12 +5,11 @@ from flask.templating import render_template
 import urllib.parse
 import json
 import mysql.connector as msql
-from requests.sessions import session
 import config_env
 import uuid
 import requests
 import re
-import time, random
+import time
 import base64
 import datetime
 import hashlib
@@ -33,7 +32,9 @@ drive_mediaid_table = {}
 def build_query(**kwargs):
     prms = set()
     for k in kwargs.keys():
-        prms.add(f'{k}={urllib.parse.quote(kwargs[k])}')
+        encoded_value = urllib.parse.quote(kwargs[k])
+        encoded_value = encoded_value.replace('%3A', ':') # Cloudflare対策
+        prms.add(f'{k}={encoded_value}')
     return '&'.join(prms)
 
 def get_token_from_header(h):
@@ -63,7 +64,7 @@ def generateMastodonId():
 
 @app.route('/')
 def root():
-    return '<h1>MaMi</h1>API Converting System between Mastodon and Misskey'
+    return '<h1>MaMi</h1>API Converting System between Mastodon and Misskey<br><a href="https://zenn.dev/cyberrex/articles/d8e2151d28402a">Read more</a>'
 
 @app.route('/api/v1/apps', methods=['POST'])
 def api_v1_apps():
@@ -657,7 +658,8 @@ def api_share_do():
     res.headers['Location'] = 'https://' + request.form['domain'] + '/share?text=' + urllib.parse.quote(text)
     return res
 
-if config_env.DEBUG:
-    app.run(host='0.0.0.0', port=2222, debug=True, threaded=True)
-else:
-    app.run(host='0.0.0.0', port=config_env.PORT, debug=False, threaded=True)
+if __name__ == '__main__':
+    if config_env.DEBUG:
+        app.run(host='0.0.0.0', port=2222, debug=True, threaded=True)
+    else:
+        app.run(host='0.0.0.0', port=config_env.PORT, debug=False, threaded=True)
